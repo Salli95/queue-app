@@ -362,29 +362,52 @@ function EventQueue({ user, onLogin }) {
       setShowLoginModal(true);
       return;
     }
+    
+    // Оптимистичное обновление UI (сразу показываем, что место занято)
+    const tempSlot = {
+      id: `temp-${Date.now()}`,
+      position,
+      user: { id: user.id, name: user.name }
+    };
+    setSlots(prev => [...prev, tempSlot]);
+
     try {
       await api.post('/slots/', {
         position,
         event_id: parseInt(eventId),
         secret_token: user.secret_token
       });
-      fetchData();
+      fetchData(); // тихо обновляем реальные данные в фоне
     } catch (err) {
+      // Откат изменений при ошибке
+      setSlots(prev => prev.filter(s => s.id !== tempSlot.id));
       if (err.response?.status === 403) {
-        // Токен устарел или база была очищена
         localStorage.removeItem('user');
         window.location.reload();
+      } else {
+        alert(err.response?.data?.detail || 'Ошибка при занятии места');
       }
-      alert(err.response?.data?.detail || 'Ошибка при занятии места');
     }
   };
 
   const deleteSlot = async (slotId) => {
     if (!window.confirm('Освободить место?')) return;
+    
+    // Оптимистичное обновление UI (сразу убираем место)
+    const slotToRemove = slots.find(s => s.id === slotId);
+    setSlots(prev => prev.filter(s => s.id !== slotId));
+
     try {
+      // Если это временный ID (еще не сохранился на сервере, но пользователь уже удаляет) - игнорируем удаление на сервере
+      if (String(slotId).startsWith('temp-')) {
+          fetchData();
+          return;
+      }
       await api.delete(`/slots/${slotId}`);
       fetchData();
     } catch (err) {
+      // Откат при ошибке
+      if (slotToRemove) setSlots(prev => [...prev, slotToRemove]);
       alert(err.response?.data?.detail || 'Ошибка');
     }
   };
