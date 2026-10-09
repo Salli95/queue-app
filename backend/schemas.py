@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
 
 class UserCreate(BaseModel):
     name: str
@@ -35,6 +36,7 @@ class EventBase(BaseModel):
 
 class EventResponse(EventBase):
     id: int
+    created_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True
@@ -61,6 +63,7 @@ class HomeworkBase(BaseModel):
 
 class HomeworkResponse(HomeworkBase):
     id: int
+    created_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True

@@ -20,6 +20,25 @@ const formatDateWithDay = (dateStr) => {
   return `${day} ${month} (${weekday.charAt(0).toUpperCase() + weekday.slice(1)})`;
 };
 
+const getDaysUntilDeletion = (createdAtStr) => {
+  if (!createdAtStr) return 18;
+  const createdDate = new Date(createdAtStr + 'Z'); // ensure UTC
+  const now = new Date();
+  const diffTime = now.getTime() - createdDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const daysLeft = 18 - diffDays;
+  return daysLeft > 0 ? daysLeft : 0;
+};
+
+const getDaysString = (days) => {
+  const lastDigit = days % 10;
+  const lastTwoDigits = days % 100;
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return 'дней';
+  if (lastDigit === 1) return 'день';
+  if (lastDigit >= 2 && lastDigit <= 4) return 'дня';
+  return 'дней';
+};
+
 function Dashboard() {
   const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
@@ -533,6 +552,11 @@ function Dashboard() {
                       </div>
                       <h4 className="text-xl font-bold text-gray-800 mt-2 leading-tight">{sub?.name}</h4>
                       <p className="text-md font-medium text-gray-500 mt-1">{ev.title || 'Без названия'}</p>
+                      {ev.created_at && (
+                        <p className="text-xs text-gray-400 mt-3 font-medium">
+                          (удалится через {getDaysUntilDeletion(ev.created_at)} {getDaysString(getDaysUntilDeletion(ev.created_at))})
+                        </p>
+                      )}
                     </div>
                     
                     <div className="mt-6 flex items-center justify-between text-brand text-sm font-semibold">
@@ -665,6 +689,13 @@ function Dashboard() {
                         <h4 className="text-xl font-bold text-gray-800 mt-2 leading-tight">{sub?.name}: {hw.title}</h4>
                         {hw.description && (
                           <p className="text-sm font-medium text-gray-600 mt-2 whitespace-pre-wrap">{hw.description}</p>
+                        )}
+                        {hw.created_at && (
+                          <div className="mt-4 pt-3 border-t border-gray-100">
+                            <p className="text-xs text-gray-400 font-medium">
+                              (удалится через {getDaysUntilDeletion(hw.created_at)} {getDaysString(getDaysUntilDeletion(hw.created_at))})
+                            </p>
+                          </div>
                         )}
                       </div>
                     );

@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from .database import Base
 
 class User(Base):
@@ -25,6 +26,7 @@ class Event(Base):
     title = Column(String, index=True) # Например: "Лаба 1", "Экзамен"
     date = Column(String) # Дата проведения
     subject_id = Column(Integer, ForeignKey("subjects.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     subject = relationship("Subject", back_populates="events")
     slots = relationship("QueueSlot", back_populates="event")
@@ -48,5 +50,6 @@ class Homework(Base):
     description = Column(String)
     due_date = Column(String) # Срок сдачи (опционально)
     subject_id = Column(Integer, ForeignKey("subjects.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     subject = relationship("Subject")

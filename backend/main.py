@@ -10,6 +10,9 @@ from .database import engine, get_db, SessionLocal
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
 
+from sqlalchemy import text
+from datetime import datetime, timedelta
+
 def seed_default_subjects():
     db = SessionLocal()
     try:
@@ -29,7 +32,37 @@ def seed_default_subjects():
     finally:
         db.close()
 
+def patch_schema_add_created_at():
+    db = SessionLocal()
+    try:
+        db.execute(text('ALTER TABLE events ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'))
+        db.commit()
+    except Exception:
+        db.rollback()
+    try:
+        db.execute(text('ALTER TABLE homeworks ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'))
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+def cleanup_old_records():
+    db = SessionLocal()
+    try:
+        threshold = datetime.utcnow() - timedelta(days=18)
+        db.query(models.Event).filter(models.Event.created_at < threshold).delete()
+        db.query(models.Homework).filter(models.Homework.created_at < threshold).delete()
+        db.commit()
+    except Exception as e:
+        print("Cleanup failed:", e)
+        db.rollback()
+    finally:
+        db.close()
+
 seed_default_subjects()
+patch_schema_add_created_at()
+cleanup_old_records()
 
 app = FastAPI(title="Queue Management API")
 
