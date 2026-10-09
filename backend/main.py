@@ -41,6 +41,16 @@ def create_subject(subject: schemas.SubjectBase, db: Session = Depends(get_db)):
     db.refresh(db_subject)
     return db_subject
 
+@app.put("/subjects/{subject_id}", response_model=schemas.SubjectResponse)
+def update_subject(subject_id: int, subject: schemas.SubjectBase, db: Session = Depends(get_db)):
+    db_subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
+    if not db_subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    db_subject.name = subject.name
+    db.commit()
+    db.refresh(db_subject)
+    return db_subject
+
 @app.delete("/subjects/{subject_id}")
 def delete_subject(subject_id: int, db: Session = Depends(get_db)):
     subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
@@ -67,6 +77,18 @@ def get_events(subject_id: int = None, db: Session = Depends(get_db)):
 def create_event(event: schemas.EventBase, db: Session = Depends(get_db)):
     db_event = models.Event(**event.dict())
     db.add(db_event)
+    db.commit()
+    db.refresh(db_event)
+    return db_event
+
+@app.put("/events/{event_id}", response_model=schemas.EventResponse)
+def update_event(event_id: int, event: schemas.EventBase, db: Session = Depends(get_db)):
+    db_event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    db_event.title = event.title
+    db_event.date = event.date
+    db_event.subject_id = event.subject_id
     db.commit()
     db.refresh(db_event)
     return db_event
