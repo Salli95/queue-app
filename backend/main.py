@@ -5,10 +5,31 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from . import models, schemas
-from .database import engine, get_db
+from .database import engine, get_db, SessionLocal
 
 # Create DB tables
 models.Base.metadata.create_all(bind=engine)
+
+def seed_default_subjects():
+    db = SessionLocal()
+    try:
+        if db.query(models.Subject).count() == 0:
+            default_subjects = [
+                "базы данных",
+                "Исследование операций",
+                "Компьютерное зрение",
+                "EDA",
+                "WEB технологии"
+            ]
+            for name in default_subjects:
+                db.add(models.Subject(name=name))
+            db.commit()
+    except Exception as e:
+        print("Failed to seed subjects:", e)
+    finally:
+        db.close()
+
+seed_default_subjects()
 
 app = FastAPI(title="Queue Management API")
 
