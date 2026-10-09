@@ -40,3 +40,13 @@ class QueueSlot(Base):
     event = relationship("Event", back_populates="slots")
     user = relationship("User")
 
+class Homework(Base):
+    __tablename__ = "homeworks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    description = Column(String)
+    due_date = Column(String) # Срок сдачи (опционально)
+    subject_id = Column(Integer, ForeignKey("subjects.id"))
+    
+    subject = relationship("Subject")

@@ -146,3 +146,35 @@ def delete_slot(slot_id: int, db: Session = Depends(get_db)):
     db.delete(slot)
     db.commit()
     return {"message": "Slot deleted"}
+
+@app.get("/homeworks/", response_model=List[schemas.HomeworkResponse])
+def get_homeworks(db: Session = Depends(get_db)):
+    return db.query(models.Homework).all()
+
+@app.post("/homeworks/", response_model=schemas.HomeworkResponse)
+def create_homework(hw: schemas.HomeworkBase, db: Session = Depends(get_db)):
+    db_hw = models.Homework(**hw.dict())
+    db.add(db_hw)
+    db.commit()
+    db.refresh(db_hw)
+    return db_hw
+
+@app.put("/homeworks/{hw_id}", response_model=schemas.HomeworkResponse)
+def update_homework(hw_id: int, hw: schemas.HomeworkBase, db: Session = Depends(get_db)):
+    db_hw = db.query(models.Homework).filter(models.Homework.id == hw_id).first()
+    if not db_hw:
+        raise HTTPException(status_code=404, detail="Homework not found")
+    for key, value in hw.dict().items():
+        setattr(db_hw, key, value)
+    db.commit()
+    db.refresh(db_hw)
+    return db_hw
+
+@app.delete("/homeworks/{hw_id}")
+def delete_homework(hw_id: int, db: Session = Depends(get_db)):
+    db_hw = db.query(models.Homework).filter(models.Homework.id == hw_id).first()
+    if not db_hw:
+        raise HTTPException(status_code=404, detail="Homework not found")
+    db.delete(db_hw)
+    db.commit()
+    return {"message": "Homework deleted"}

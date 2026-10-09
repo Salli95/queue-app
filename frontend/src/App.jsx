@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import api from './api';
-import { BookOpen, Calendar, ArrowLeft, ArrowRight, ArrowLeft as ArrowLeftIcon, Check, Trash2, Plus, Users, UserPlus, Edit2, X, Filter } from 'lucide-react';
+import { BookOpen, Calendar, ArrowLeft, ArrowRight, ArrowLeft as ArrowLeftIcon, Check, Trash2, Plus, Users, UserPlus, Edit2, X, Filter, FileText } from 'lucide-react';
 
 const formatDateWithDay = (dateStr) => {
   if (!dateStr) return 'Без даты';
@@ -24,6 +24,8 @@ function Dashboard() {
   const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
   const [events, setEvents] = useState([]);
+  const [homeworks, setHomeworks] = useState([]);
+  const [activeTab, setActiveTab] = useState('queues'); // 'queues' or 'homeworks'
   const [showCreateForm, setShowCreateForm] = useState(false);
   
   // Subject UI state
@@ -50,12 +52,14 @@ function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const [subs, evs] = await Promise.all([
+      const [subs, evs, hws] = await Promise.all([
         api.get('/subjects/'),
-        api.get('/events/')
+        api.get('/events/'),
+        api.get('/homeworks/')
       ]);
       setSubjects(subs.data);
       setEvents(evs.data);
+      setHomeworks(hws.data);
     } catch (err) {
       console.error(err);
     }
@@ -140,10 +144,41 @@ function Dashboard() {
     }
   };
 
+  const [newHw, setNewHw] = useState({ title: '', description: '', due_date: '', subject_id: '' });
+  
+  const createHomework = async (e) => {
+    e.preventDefault();
+    if (!newHw.subject_id) return alert('Выберите предмет');
+    try {
+      await api.post('/homeworks/', {
+        title: newHw.title.trim() || 'Без названия',
+        description: newHw.description || '',
+        due_date: newHw.due_date || null,
+        subject_id: parseInt(newHw.subject_id)
+      });
+      setShowCreateForm(false);
+      setNewHw({ title: '', description: '', due_date: '', subject_id: '' });
+      fetchData();
+    } catch (err) {
+      alert('Ошибка при добавлении задания');
+    }
+  };
+
+  const deleteHomework = async (id) => {
+    if (!window.confirm('Точно удалить задание?')) return;
+    try {
+      await api.delete(`/homeworks/${id}`);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // Sync selected subject to create form
   useEffect(() => {
     if (showCreateForm && selectedSubjectId) {
       setNewEvent(prev => ({ ...prev, subject_id: selectedSubjectId }));
+      setNewHw(prev => ({ ...prev, subject_id: selectedSubjectId }));
     }
   }, [selectedSubjectId, showCreateForm]);
 
@@ -176,6 +211,12 @@ function Dashboard() {
     return 0;
   });
 
+  let displayedHomeworks = selectedSubjectId 
+    ? homeworks.filter(h => h.subject_id === selectedSubjectId)
+    : [...homeworks];
+    
+  displayedHomeworks.sort((a, b) => b.id - a.id);
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -184,7 +225,22 @@ function Dashboard() {
             <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center shadow-sm">
               <BookOpen size={18} className="text-white" />
             </div>
-            <h1 className="text-xl font-bold text-gray-800 tracking-tight">Очередь IT3-2303</h1>
+            <h1 className="text-xl font-bold text-gray-800 tracking-tight hidden sm:block">Очередь IT3-2303</h1>
+          </div>
+          
+          <div className="flex bg-gray-100 p-1 rounded-xl">
+            <button 
+              onClick={() => { setActiveTab('queues'); setShowCreateForm(false); }}
+              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'queues' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Очереди
+            </button>
+            <button 
+              onClick={() => { setActiveTab('homeworks'); setShowCreateForm(false); }}
+              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${activeTab === 'homeworks' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <FileText size={16} /> Домашка
+            </button>
           </div>
         </div>
       </header>
@@ -304,12 +360,14 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Main Content: Events */}
+        {/* Main Content: Events/Homeworks */}
         <div className="flex-1">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-            <h2 className="text-2xl font-bold text-gray-800">
-              {selectedSubjectId ? subjects.find(s => s.id === selectedSubjectId)?.name : 'Доступные очереди'}
-            </h2>
+          {activeTab === 'queues' && (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {selectedSubjectId ? subjects.find(s => s.id === selectedSubjectId)?.name : 'Доступные очереди'}
+                </h2>
             
             <div className="flex items-center gap-2">
               <button 
@@ -493,6 +551,134 @@ function Dashboard() {
                 {filterDate && <p className="text-sm mt-1">Попробуйте выбрать другую дату</p>}
               </div>
             )
+          )}
+            </>
+          )}
+
+          {activeTab === 'homeworks' && (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {selectedSubjectId ? subjects.find(s => s.id === selectedSubjectId)?.name : 'Домашние задания'}
+                </h2>
+                
+                <button 
+                  onClick={() => {
+                    if (!showCreateForm) {
+                      setNewHw({ title: '', description: '', due_date: '', subject_id: selectedSubjectId || '' });
+                    }
+                    setShowCreateForm(!showCreateForm);
+                  }}
+                  className="flex items-center justify-center gap-2 bg-brand text-white px-5 py-2.5 rounded-xl font-medium hover:bg-brand-hover transition-all shadow-sm active:scale-95"
+                >
+                  {showCreateForm ? 'Отмена' : 'Добавить ДЗ'}
+                </button>
+              </div>
+
+              {/* Create Homework Form */}
+              {showCreateForm && (
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm mb-6 animate-in fade-in slide-in-from-top-4 duration-200">
+                  <h3 className="font-bold text-gray-800 mb-4">Новое домашнее задание</h3>
+                  <form onSubmit={createHomework} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Предмет *</label>
+                      <select 
+                        required
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand outline-none bg-white"
+                        value={newHw.subject_id}
+                        onChange={e => setNewHw({...newHw, subject_id: e.target.value})}
+                      >
+                        <option value="">Выберите предмет...</option>
+                        {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Срок сдачи (дедлайн)</label>
+                      <input 
+                        type="date" 
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand outline-none"
+                        value={newHw.due_date}
+                        onChange={e => setNewHw({...newHw, due_date: e.target.value})}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Заголовок / Тема</label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Например: Сделать отчет по ЛР1" 
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand outline-none"
+                        value={newHw.title}
+                        onChange={e => setNewHw({...newHw, title: e.target.value})}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Описание задания</label>
+                      <textarea 
+                        rows="3"
+                        placeholder="Дополнительные детали..." 
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand outline-none resize-none"
+                        value={newHw.description}
+                        onChange={e => setNewHw({...newHw, description: e.target.value})}
+                      />
+                    </div>
+                    <div className="md:col-span-2 flex justify-end mt-2">
+                      <button type="submit" className="bg-gray-900 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-black transition-colors shadow-sm">
+                        Добавить
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {displayedHomeworks.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4">
+                  {displayedHomeworks.map(hw => {
+                    const sub = subjects.find(s => s.id === hw.subject_id);
+                    return (
+                      <div 
+                        key={hw.id} 
+                        className="group bg-white p-5 rounded-2xl border border-gray-200 hover:border-brand/30 hover:shadow-md transition-all flex flex-col"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md uppercase tracking-wide">
+                              ДЗ
+                            </div>
+                            {hw.due_date && (
+                              <div className="flex items-center gap-1 bg-red-50 text-red-600 text-xs font-semibold px-2.5 py-1 rounded-md tracking-wide border border-red-100">
+                                <Calendar size={14} />
+                                Дедлайн: {formatDateWithDay(hw.due_date)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              onClick={() => deleteHomework(hw.id)}
+                              className="text-gray-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50"
+                              title="Удалить"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                        <h4 className="text-xl font-bold text-gray-800 mt-2 leading-tight">{sub?.name}: {hw.title}</h4>
+                        {hw.description && (
+                          <p className="text-sm font-medium text-gray-600 mt-2 whitespace-pre-wrap">{hw.description}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                !showCreateForm && (
+                  <div className="py-16 text-center text-gray-400 bg-white border border-dashed border-gray-200 rounded-2xl">
+                    <FileText size={48} className="mx-auto text-gray-200 mb-4" />
+                    <p className="text-lg font-medium">Пока нет домашних заданий</p>
+                  </div>
+                )
+              )}
+            </>
           )}
         </div>
       </div>

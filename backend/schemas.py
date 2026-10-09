@@ -52,3 +52,15 @@ class QueueSlotResponse(QueueSlotBase):
 
     class Config:
         orm_mode = True
+
+class HomeworkBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    due_date: Optional[str] = None
+    subject_id: int
+
+class HomeworkResponse(HomeworkBase):
+    id: int
+
+    class Config:
+        orm_mode = True
