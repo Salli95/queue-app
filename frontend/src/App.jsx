@@ -157,6 +157,13 @@ function Dashboard() {
     }
   }, [uniqueDates.length, currentDateIndex]);
 
+  // Sync selected subject to create form
+  useEffect(() => {
+    if (showCreateForm && selectedSubjectId) {
+      setNewEvent(prev => ({ ...prev, subject_id: selectedSubjectId }));
+    }
+  }, [selectedSubjectId, showCreateForm]);
+
   const activeDate = (showDateFilter && uniqueDates.length > 0) ? (uniqueDates[currentDateIndex] || null) : null;
   
   // 3. Filter the subjectEvents by the active date (only if filter is active)
@@ -304,7 +311,12 @@ function Dashboard() {
                 <Filter size={20} />
               </button>
               <button 
-                onClick={() => setShowCreateForm(!showCreateForm)}
+                onClick={() => {
+                  if (!showCreateForm) {
+                    setNewEvent({ title: '', date: '', subject_id: selectedSubjectId || '' });
+                  }
+                  setShowCreateForm(!showCreateForm);
+                }}
                 className="flex items-center justify-center gap-2 bg-brand text-white px-5 py-2.5 rounded-xl font-medium hover:bg-brand-hover transition-all shadow-sm active:scale-95"
               >
                 {showCreateForm ? 'Отмена' : 'Создать очередь'}
