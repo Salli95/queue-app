@@ -150,6 +150,8 @@ function Dashboard() {
     return new Date(a) - new Date(b);
   });
 
+  const [subjectSort, setSubjectSort] = useState('alpha');
+
   // Keep date index within bounds
   useEffect(() => {
     if (currentDateIndex >= uniqueDates.length && uniqueDates.length > 0) {
@@ -168,6 +170,22 @@ function Dashboard() {
   
   // 3. Filter the subjectEvents by the active date (only if filter is active)
   const filteredEvents = activeDate ? subjectEvents.filter(e => (e.date || 'Без даты') === activeDate) : subjectEvents;
+
+  // 4. Sort Subjects
+  const getSubjectDate = (subId, type) => {
+    const evs = events.filter(e => e.subject_id === subId && e.date);
+    if (evs.length === 0) return type === 'nearest' ? Infinity : -Infinity;
+    const dates = evs.map(e => new Date(e.date).getTime());
+    return type === 'nearest' ? Math.min(...dates) : Math.max(...dates);
+  };
+
+  const sortedSubjects = [...subjects].sort((a, b) => {
+    if (subjectSort === 'alpha') return a.name.localeCompare(b.name);
+    const valA = getSubjectDate(a.id, subjectSort);
+    const valB = getSubjectDate(b.id, subjectSort);
+    if (valA === valB) return a.name.localeCompare(b.name);
+    return subjectSort === 'nearest' ? valA - valB : valB - valA;
+  });
 
   const handlePrevDate = () => {
     if (currentDateIndex > 0) setCurrentDateIndex(currentDateIndex - 1);
@@ -194,7 +212,7 @@ function Dashboard() {
         
         {/* Sidebar: Subjects */}
         <div className="w-full md:w-64 shrink-0">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Предметы</h2>
             <button 
               onClick={() => setIsAddingSubject(!isAddingSubject)}
@@ -203,6 +221,18 @@ function Dashboard() {
             >
               <Plus size={18} />
             </button>
+          </div>
+
+          <div className="mb-4">
+            <select 
+              value={subjectSort}
+              onChange={e => setSubjectSort(e.target.value)}
+              className="text-xs text-gray-500 bg-transparent outline-none cursor-pointer hover:text-gray-800 transition-colors"
+            >
+              <option value="alpha">По алфавиту</option>
+              <option value="nearest">Ближайшие сдачи</option>
+              <option value="farthest">Дальние сдачи</option>
+            </select>
           </div>
           
           {isAddingSubject && (
@@ -234,7 +264,7 @@ function Dashboard() {
               Все предметы
             </button>
             
-            {subjects.map(sub => {
+            {sortedSubjects.map(sub => {
               const isSelected = selectedSubjectId === sub.id;
               
               if (editingSubjectId === sub.id) {
@@ -377,9 +407,20 @@ function Dashboard() {
               >
                 <ArrowLeftIcon size={20} />
               </button>
-              <div className="flex flex-col items-center">
-                <span className="text-sm font-bold text-gray-400 uppercase tracking-wider">Дата</span>
-                <span className="font-semibold text-gray-800 text-lg">{activeDate === 'Без даты' ? activeDate : formatDateWithDay(activeDate)}</span>
+              <div className="flex flex-col items-center flex-1 mx-4">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Дата</span>
+                <select
+                  value={currentDateIndex}
+                  onChange={(e) => setCurrentDateIndex(Number(e.target.value))}
+                  className="font-semibold text-gray-800 text-lg bg-transparent text-center appearance-none cursor-pointer outline-none hover:text-brand transition-colors w-full"
+                  style={{ textAlignLast: 'center' }}
+                >
+                  {uniqueDates.map((date, idx) => (
+                    <option key={date} value={idx}>
+                      {date === 'Без даты' ? date : formatDateWithDay(date)}
+                    </option>
+                  ))}
+                </select>
               </div>
               <button 
                 onClick={handleNextDate}
