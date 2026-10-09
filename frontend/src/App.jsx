@@ -38,9 +38,10 @@ function Dashboard() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [editEventForm, setEditEventForm] = useState({ title: '', date: '', subject_id: '' });
   
-  // Date filtering state
-  const [showDateFilter, setShowDateFilter] = useState(false);
-  const [currentDateIndex, setCurrentDateIndex] = useState(0);
+  // Filter & Sort State
+  const [showFilters, setShowFilters] = useState(false);
+  const [eventSort, setEventSort] = useState('nearest'); // 'nearest', 'farthest', 'newest'
+  const [filterDate, setFilterDate] = useState(''); // Specific date
 
   useEffect(() => {
     fetchData();
@@ -138,27 +139,6 @@ function Dashboard() {
     }
   };
 
-  // 1. Filter events by selected subject
-  const subjectEvents = selectedSubjectId 
-    ? events.filter(e => e.subject_id === selectedSubjectId)
-    : events;
-
-  // 2. Extract unique dates for those events
-  const uniqueDates = [...new Set(subjectEvents.map(e => e.date || 'Без даты'))].sort((a, b) => {
-    if (a === 'Без даты') return 1;
-    if (b === 'Без даты') return -1;
-    return new Date(a) - new Date(b);
-  });
-
-  const [subjectSort, setSubjectSort] = useState('alpha');
-
-  // Keep date index within bounds
-  useEffect(() => {
-    if (currentDateIndex >= uniqueDates.length && uniqueDates.length > 0) {
-      setCurrentDateIndex(Math.max(0, uniqueDates.length - 1));
-    }
-  }, [uniqueDates.length, currentDateIndex]);
-
   // Sync selected subject to create form
   useEffect(() => {
     if (showCreateForm && selectedSubjectId) {
@@ -166,34 +146,34 @@ function Dashboard() {
     }
   }, [selectedSubjectId, showCreateForm]);
 
-  const activeDate = (showDateFilter && uniqueDates.length > 0) ? (uniqueDates[currentDateIndex] || null) : null;
-  
-  // 3. Filter the subjectEvents by the active date (only if filter is active)
-  const filteredEvents = activeDate ? subjectEvents.filter(e => (e.date || 'Без даты') === activeDate) : subjectEvents;
+  // Subjects processing
+  const sortedSubjects = [...subjects].sort((a, b) => a.name.localeCompare(b.name));
 
-  // 4. Sort Subjects
-  const getSubjectDate = (subId, type) => {
-    const evs = events.filter(e => e.subject_id === subId && e.date);
-    if (evs.length === 0) return type === 'nearest' ? Infinity : -Infinity;
-    const dates = evs.map(e => new Date(e.date).getTime());
-    return type === 'nearest' ? Math.min(...dates) : Math.max(...dates);
-  };
+  // Events processing
+  let displayedEvents = selectedSubjectId 
+    ? events.filter(e => e.subject_id === selectedSubjectId)
+    : [...events];
 
-  const sortedSubjects = [...subjects].sort((a, b) => {
-    if (subjectSort === 'alpha') return a.name.localeCompare(b.name);
-    const valA = getSubjectDate(a.id, subjectSort);
-    const valB = getSubjectDate(b.id, subjectSort);
-    if (valA === valB) return a.name.localeCompare(b.name);
-    return subjectSort === 'nearest' ? valA - valB : valB - valA;
+  if (filterDate) {
+    displayedEvents = displayedEvents.filter(e => e.date === filterDate);
+  }
+
+  displayedEvents.sort((a, b) => {
+    if (eventSort === 'newest') return b.id - a.id;
+
+    const timeA = a.date ? new Date(a.date).getTime() : Infinity;
+    const timeB = b.date ? new Date(b.date).getTime() : Infinity;
+
+    if (timeA === timeB) return b.id - a.id;
+
+    if (eventSort === 'nearest') return timeA - timeB;
+    if (eventSort === 'farthest') {
+      if (!a.date) return 1; // null dates always at the end
+      if (!b.date) return -1;
+      return timeB - timeA;
+    }
+    return 0;
   });
-
-  const handlePrevDate = () => {
-    if (currentDateIndex > 0) setCurrentDateIndex(currentDateIndex - 1);
-  };
-
-  const handleNextDate = () => {
-    if (currentDateIndex < uniqueDates.length - 1) setCurrentDateIndex(currentDateIndex + 1);
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -212,7 +192,7 @@ function Dashboard() {
         
         {/* Sidebar: Subjects */}
         <div className="w-full md:w-64 shrink-0">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Предметы</h2>
             <button 
               onClick={() => setIsAddingSubject(!isAddingSubject)}
@@ -221,18 +201,6 @@ function Dashboard() {
             >
               <Plus size={18} />
             </button>
-          </div>
-
-          <div className="mb-4">
-            <select 
-              value={subjectSort}
-              onChange={e => setSubjectSort(e.target.value)}
-              className="text-xs text-gray-500 bg-transparent outline-none cursor-pointer hover:text-gray-800 transition-colors"
-            >
-              <option value="alpha">По алфавиту</option>
-              <option value="nearest">Ближайшие сдачи</option>
-              <option value="farthest">Дальние сдачи</option>
-            </select>
           </div>
           
           {isAddingSubject && (
@@ -332,11 +300,11 @@ function Dashboard() {
             
             <div className="flex items-center gap-2">
               <button 
-                onClick={() => setShowDateFilter(!showDateFilter)}
+                onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center justify-center p-2.5 rounded-xl transition-all shadow-sm active:scale-95 border ${
-                  showDateFilter ? 'bg-brand/10 text-brand border-brand/20' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-700'
+                  showFilters ? 'bg-brand/10 text-brand border-brand/20' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-700'
                 }`}
-                title="Фильтр по дате"
+                title="Настройки фильтрации"
               >
                 <Filter size={20} />
               </button>
@@ -354,6 +322,52 @@ function Dashboard() {
             </div>
           </div>
 
+          {/* Filter Settings Panel */}
+          {showFilters && (
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm mb-6 animate-in fade-in slide-in-from-top-4 duration-200">
+              <div className="flex flex-col md:flex-row gap-6">
+                
+                {/* Event Sorting */}
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Сортировка очередей</label>
+                  <select 
+                    value={eventSort} 
+                    onChange={e => setEventSort(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand outline-none bg-gray-50 cursor-pointer"
+                  >
+                    <option value="nearest">Сначала ближайшие</option>
+                    <option value="farthest">Сначала дальние</option>
+                    <option value="newest">Недавно добавленные</option>
+                  </select>
+                </div>
+
+                {/* Date Picker */}
+                <div className="flex-1">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Показать определенный день</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="date"
+                      value={filterDate}
+                      onChange={e => setFilterDate(e.target.value)}
+                      className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand outline-none bg-gray-50"
+                    />
+                    {filterDate && (
+                      <button 
+                        onClick={() => setFilterDate('')}
+                        className="px-3 py-2 bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-800 rounded-xl transition-colors flex items-center justify-center"
+                        title="Сбросить дату"
+                      >
+                        <X size={20} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* Create Form */}
           {showCreateForm && (
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm mb-6 animate-in fade-in slide-in-from-top-4 duration-200">
               <h3 className="font-bold text-gray-800 mb-4">Создание новой очереди</h3>
@@ -398,43 +412,9 @@ function Dashboard() {
             </div>
           )}
 
-          {showDateFilter && uniqueDates.length > 0 && (
-            <div className="flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-2 mb-6 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
-              <button 
-                onClick={handlePrevDate}
-                disabled={currentDateIndex === 0}
-                className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-all cursor-pointer"
-              >
-                <ArrowLeftIcon size={20} />
-              </button>
-              <div className="flex flex-col items-center flex-1 mx-4">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Дата</span>
-                <select
-                  value={currentDateIndex}
-                  onChange={(e) => setCurrentDateIndex(Number(e.target.value))}
-                  className="font-semibold text-gray-800 text-lg bg-transparent text-center appearance-none cursor-pointer outline-none hover:text-brand transition-colors w-full"
-                  style={{ textAlignLast: 'center' }}
-                >
-                  {uniqueDates.map((date, idx) => (
-                    <option key={date} value={idx}>
-                      {date === 'Без даты' ? date : formatDateWithDay(date)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button 
-                onClick={handleNextDate}
-                disabled={currentDateIndex === uniqueDates.length - 1}
-                className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-all cursor-pointer"
-              >
-                <ArrowRight size={20} />
-              </button>
-            </div>
-          )}
-
-          {filteredEvents.length > 0 ? (
+          {displayedEvents.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {filteredEvents.map(ev => {
+              {displayedEvents.map(ev => {
                 const sub = subjects.find(s => s.id === ev.subject_id);
                 return (
                   <div 
@@ -496,8 +476,8 @@ function Dashboard() {
             !showCreateForm && (
               <div className="py-16 text-center text-gray-400 bg-white border border-dashed border-gray-200 rounded-2xl">
                 <Calendar size={48} className="mx-auto text-gray-200 mb-4" />
-                <p className="text-lg font-medium">Нет созданных очередей</p>
-                <p className="text-sm mt-1">Создайте очередь, чтобы начать</p>
+                <p className="text-lg font-medium">Нет очередей по вашему запросу</p>
+                {filterDate && <p className="text-sm mt-1">Попробуйте выбрать другую дату</p>}
               </div>
             )
           )}
