@@ -29,8 +29,8 @@ class SubjectResponse(SubjectBase):
         orm_mode = True
 
 class EventBase(BaseModel):
-    title: str
-    date: str
+    title: Optional[str] = None
+    date: Optional[str] = None
     subject_id: int
 
 class EventResponse(EventBase):
@@ -44,7 +44,7 @@ class QueueSlotBase(BaseModel):
     event_id: int
 
 class QueueSlotCreate(QueueSlotBase):
-    secret_token: str # Токен юзера, чтобы подтвердить, что это он
+    student_name: str 
 
 class QueueSlotResponse(QueueSlotBase):
     id: int
@@ -52,4 +52,3 @@ class QueueSlotResponse(QueueSlotBase):
 
     class Config:
         orm_mode = True
-
