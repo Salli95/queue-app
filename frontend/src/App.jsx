@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import api from './api';
-import { BookOpen, Calendar, ArrowLeft, ArrowRight, ArrowLeft as ArrowLeftIcon, Check, Trash2, Plus, Users, UserPlus, Edit2, X } from 'lucide-react';
+import { BookOpen, Calendar, ArrowLeft, ArrowRight, ArrowLeft as ArrowLeftIcon, Check, Trash2, Plus, Users, UserPlus, Edit2, X, Filter } from 'lucide-react';
 
 const formatDateWithDay = (dateStr) => {
   if (!dateStr) return 'Без даты';
@@ -39,6 +39,7 @@ function Dashboard() {
   const [editEventForm, setEditEventForm] = useState({ title: '', date: '', subject_id: '' });
   
   // Date filtering state
+  const [showDateFilter, setShowDateFilter] = useState(false);
   const [currentDateIndex, setCurrentDateIndex] = useState(0);
 
   useEffect(() => {
@@ -156,10 +157,10 @@ function Dashboard() {
     }
   }, [uniqueDates.length, currentDateIndex]);
 
-  const activeDate = uniqueDates[currentDateIndex] || null;
+  const activeDate = (showDateFilter && uniqueDates.length > 0) ? (uniqueDates[currentDateIndex] || null) : null;
   
-  // 3. Filter the subjectEvents by the active date
-  const filteredEvents = activeDate ? subjectEvents.filter(e => (e.date || 'Без даты') === activeDate) : [];
+  // 3. Filter the subjectEvents by the active date (only if filter is active)
+  const filteredEvents = activeDate ? subjectEvents.filter(e => (e.date || 'Без даты') === activeDate) : subjectEvents;
 
   const handlePrevDate = () => {
     if (currentDateIndex > 0) setCurrentDateIndex(currentDateIndex - 1);
@@ -264,6 +265,7 @@ function Dashboard() {
                         setEditingSubjectName(sub.name);
                       }}
                       className={`p-1.5 rounded-md ${isSelected ? 'hover:bg-brand/20 text-brand' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600'}`}
+                      title="Редактировать"
                     >
                       <Edit2 size={14} />
                     </button>
@@ -273,6 +275,7 @@ function Dashboard() {
                         deleteSubject(sub.id);
                       }}
                       className={`p-1.5 rounded-md ${isSelected ? 'hover:bg-red-100 text-red-500' : 'hover:bg-red-50 text-gray-400 hover:text-red-500'}`}
+                      title="Удалить"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -290,12 +293,23 @@ function Dashboard() {
               {selectedSubjectId ? subjects.find(s => s.id === selectedSubjectId)?.name : 'Доступные очереди'}
             </h2>
             
-            <button 
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              className="flex items-center justify-center gap-2 bg-brand text-white px-5 py-2.5 rounded-xl font-medium hover:bg-brand-hover transition-all shadow-sm active:scale-95"
-            >
-              {showCreateForm ? 'Отмена' : 'Создать очередь'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setShowDateFilter(!showDateFilter)}
+                className={`flex items-center justify-center p-2.5 rounded-xl transition-all shadow-sm active:scale-95 border ${
+                  showDateFilter ? 'bg-brand/10 text-brand border-brand/20' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-700'
+                }`}
+                title="Фильтр по дате"
+              >
+                <Filter size={20} />
+              </button>
+              <button 
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                className="flex items-center justify-center gap-2 bg-brand text-white px-5 py-2.5 rounded-xl font-medium hover:bg-brand-hover transition-all shadow-sm active:scale-95"
+              >
+                {showCreateForm ? 'Отмена' : 'Создать очередь'}
+              </button>
+            </div>
           </div>
 
           {showCreateForm && (
@@ -342,80 +356,88 @@ function Dashboard() {
             </div>
           )}
 
-          {uniqueDates.length > 0 ? (
-            <div className="mb-8">
-              {/* Date Filter Controls */}
-              <div className="flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-2 mb-6 shadow-sm">
-                <button 
-                  onClick={handlePrevDate}
-                  disabled={currentDateIndex === 0}
-                  className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-all cursor-pointer"
-                >
-                  <ArrowLeftIcon size={20} />
-                </button>
-                <div className="flex flex-col items-center">
-                  <span className="text-sm font-bold text-gray-400 uppercase tracking-wider">Дата</span>
-                  <span className="font-semibold text-gray-800 text-lg">{activeDate === 'Без даты' ? activeDate : formatDateWithDay(activeDate)}</span>
-                </div>
-                <button 
-                  onClick={handleNextDate}
-                  disabled={currentDateIndex === uniqueDates.length - 1}
-                  className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-all cursor-pointer"
-                >
-                  <ArrowRight size={20} />
-                </button>
+          {showDateFilter && uniqueDates.length > 0 && (
+            <div className="flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-2 mb-6 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+              <button 
+                onClick={handlePrevDate}
+                disabled={currentDateIndex === 0}
+                className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-all cursor-pointer"
+              >
+                <ArrowLeftIcon size={20} />
+              </button>
+              <div className="flex flex-col items-center">
+                <span className="text-sm font-bold text-gray-400 uppercase tracking-wider">Дата</span>
+                <span className="font-semibold text-gray-800 text-lg">{activeDate === 'Без даты' ? activeDate : formatDateWithDay(activeDate)}</span>
               </div>
+              <button 
+                onClick={handleNextDate}
+                disabled={currentDateIndex === uniqueDates.length - 1}
+                className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-30 transition-all cursor-pointer"
+              >
+                <ArrowRight size={20} />
+              </button>
+            </div>
+          )}
 
-              {/* Events Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {filteredEvents.map(ev => {
-                  const sub = subjects.find(s => s.id === ev.subject_id);
-                  return (
-                    <div 
-                      key={ev.id} 
-                      onClick={() => navigate(`/queue/${ev.id}`)}
-                      className="group bg-white p-5 rounded-2xl border border-gray-200 hover:border-brand/30 hover:shadow-md cursor-pointer transition-all flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex justify-between items-start mb-2">
+          {filteredEvents.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {filteredEvents.map(ev => {
+                const sub = subjects.find(s => s.id === ev.subject_id);
+                return (
+                  <div 
+                    key={ev.id} 
+                    onClick={() => navigate(`/queue/${ev.id}`)}
+                    className="group bg-white p-5 rounded-2xl border border-gray-200 hover:border-brand/30 hover:shadow-md cursor-pointer transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <div className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-md uppercase tracking-wide">
                             Очередь
                           </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingEvent(ev);
-                                setEditEventForm({
-                                  title: ev.title || '',
-                                  date: ev.date || '',
-                                  subject_id: ev.subject_id
-                                });
-                              }}
-                              className="text-gray-400 hover:text-brand p-1.5 rounded-md hover:bg-brand/10"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); deleteEvent(ev.id); }}
-                              className="text-gray-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                          {ev.date && (
+                            <div className="flex items-center gap-1 bg-brand/5 text-brand text-xs font-semibold px-2.5 py-1 rounded-md tracking-wide">
+                              <Calendar size={14} />
+                              {formatDateWithDay(ev.date)}
+                            </div>
+                          )}
                         </div>
-                        <h4 className="text-xl font-bold text-gray-800 mt-2 leading-tight">{sub?.name}</h4>
-                        <p className="text-md font-medium text-gray-500 mt-1">{ev.title || 'Без названия'}</p>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingEvent(ev);
+                              setEditEventForm({
+                                title: ev.title || '',
+                                date: ev.date || '',
+                                subject_id: ev.subject_id
+                              });
+                            }}
+                            className="text-gray-400 hover:text-brand p-1.5 rounded-md hover:bg-brand/10"
+                            title="Редактировать"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); deleteEvent(ev.id); }}
+                            className="text-gray-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50"
+                            title="Удалить"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
-                      
-                      <div className="mt-6 flex items-center justify-between text-brand text-sm font-semibold">
-                        <span>Открыть очередь</span>
-                        <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                      </div>
+                      <h4 className="text-xl font-bold text-gray-800 mt-2 leading-tight">{sub?.name}</h4>
+                      <p className="text-md font-medium text-gray-500 mt-1">{ev.title || 'Без названия'}</p>
                     </div>
-                  );
-                })}
-              </div>
+                    
+                    <div className="mt-6 flex items-center justify-between text-brand text-sm font-semibold">
+                      <span>Открыть очередь</span>
+                      <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             !showCreateForm && (
