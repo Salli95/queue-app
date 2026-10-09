@@ -32,6 +32,7 @@ function Dashboard() {
   const [editingSubjectId, setEditingSubjectId] = useState(null);
   const [editingSubjectName, setEditingSubjectName] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
+  const [isSubjectsEditMode, setIsSubjectsEditMode] = useState(false);
 
   // Event UI state
   const [newEvent, setNewEvent] = useState({ title: '', date: '', subject_id: '' });
@@ -194,13 +195,22 @@ function Dashboard() {
         <div className="w-full md:w-64 shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Предметы</h2>
-            <button 
-              onClick={() => setIsAddingSubject(!isAddingSubject)}
-              className="text-brand hover:text-brand-hover hover:bg-brand/10 p-1.5 rounded-lg transition-colors"
-              title="Создать предмет"
-            >
-              <Plus size={18} />
-            </button>
+            <div className="flex gap-1">
+              <button 
+                onClick={() => setIsSubjectsEditMode(!isSubjectsEditMode)}
+                className={`p-1.5 rounded-lg transition-colors ${isSubjectsEditMode ? 'bg-brand/20 text-brand' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
+                title="Настройка предметов"
+              >
+                <Edit2 size={18} />
+              </button>
+              <button 
+                onClick={() => setIsAddingSubject(!isAddingSubject)}
+                className="text-brand hover:text-brand-hover hover:bg-brand/10 p-1.5 rounded-lg transition-colors"
+                title="Создать предмет"
+              >
+                <Plus size={18} />
+              </button>
+            </div>
           </div>
           
           {isAddingSubject && (
@@ -223,7 +233,7 @@ function Dashboard() {
           <div className="space-y-1.5">
             <button
               onClick={() => setSelectedSubjectId(null)}
-              className={`w-full text-left px-3 py-2.5 rounded-xl font-medium transition-all ${
+              className={`w-full text-left px-3 py-2 sm:py-2.5 text-sm sm:text-base rounded-xl font-medium transition-all ${
                 selectedSubjectId === null
                   ? 'bg-gray-800 text-white shadow-sm'
                   : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -254,37 +264,40 @@ function Dashboard() {
               return (
                 <div 
                   key={sub.id} 
-                  onClick={() => setSelectedSubjectId(sub.id)}
-                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all border ${
-                    isSelected 
+                  onClick={() => !isSubjectsEditMode && setSelectedSubjectId(sub.id)}
+                  className={`group flex items-center justify-between px-3 py-2 sm:py-2.5 rounded-xl transition-all border ${
+                    isSelected && !isSubjectsEditMode
                       ? 'bg-brand/10 border-brand/20 text-brand' 
                       : 'bg-white border-gray-100 hover:border-gray-200 hover:bg-gray-50 text-gray-700'
-                  }`}
+                  } ${!isSubjectsEditMode ? 'cursor-pointer' : ''}`}
                 >
-                  <span className={`font-medium truncate pr-2 ${isSelected ? 'font-bold' : ''}`}>{sub.name}</span>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingSubjectId(sub.id);
-                        setEditingSubjectName(sub.name);
-                      }}
-                      className={`p-1.5 rounded-md ${isSelected ? 'hover:bg-brand/20 text-brand' : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600'}`}
-                      title="Редактировать"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteSubject(sub.id);
-                      }}
-                      className={`p-1.5 rounded-md ${isSelected ? 'hover:bg-red-100 text-red-500' : 'hover:bg-red-50 text-gray-400 hover:text-red-500'}`}
-                      title="Удалить"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                  <span className={`font-medium text-sm sm:text-base truncate pr-2 ${isSelected && !isSubjectsEditMode ? 'font-bold' : ''}`}>{sub.name}</span>
+                  
+                  {isSubjectsEditMode && (
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingSubjectId(sub.id);
+                          setEditingSubjectName(sub.name);
+                        }}
+                        className="p-1.5 rounded-md hover:bg-gray-200 text-gray-500 hover:text-gray-800"
+                        title="Редактировать"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteSubject(sub.id);
+                        }}
+                        className="p-1.5 rounded-md hover:bg-red-100 text-red-500"
+                        title="Удалить"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
