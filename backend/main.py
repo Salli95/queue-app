@@ -1,15 +1,11 @@
 import uuid
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 
 from . import models, schemas
 from .database import engine, get_db, SessionLocal
-
-# Create DB tables
-models.Base.metadata.create_all(bind=engine)
-
 from sqlalchemy import text
 from datetime import datetime, timedelta
 
@@ -60,9 +56,16 @@ def cleanup_old_records():
     finally:
         db.close()
 
-seed_default_subjects()
-patch_schema_add_created_at()
-cleanup_old_records()
+def init_db():
+    try:
+        models.Base.metadata.create_all(bind=engine)
+        seed_default_subjects()
+        patch_schema_add_created_at()
+        cleanup_old_records()
+    except Exception as e:
+        print("DB initialization notice:", e)
+
+init_db()
 
 app = FastAPI(title="Queue Management API")
 
@@ -74,7 +77,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/users/", response_model=schemas.UserResponse)
+router = APIRouter()
+
+@router.post("/users/", response_model=schemas.UserResponse)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     token = str(uuid.uuid4())
     db_user = models.User(name=user.name, secret_token=token)
@@ -83,11 +88,11 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
-@app.get("/subjects/", response_model=List[schemas.SubjectResponse])
+@router.get("/subjects/", response_model=List[schemas.SubjectResponse])
 def get_subjects(db: Session = Depends(get_db)):
     return db.query(models.Subject).all()
 
-@app.post("/subjects/", response_model=schemas.SubjectResponse)
+@router.post("/subjects/", response_model=schemas.SubjectResponse)
 def create_subject(subject: schemas.SubjectBase, db: Session = Depends(get_db)):
     db_subject = models.Subject(name=subject.name)
     db.add(db_subject)
@@ -95,7 +100,7 @@ def create_subject(subject: schemas.SubjectBase, db: Session = Depends(get_db)):
     db.refresh(db_subject)
     return db_subject
 
-@app.put("/subjects/{subject_id}", response_model=schemas.SubjectResponse)
+@router.put("/subjects/{subject_id}", response_model=schemas.SubjectResponse)
 def update_subject(subject_id: int, subject: schemas.SubjectBase, db: Session = Depends(get_db)):
     db_subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
     if not db_subject:
@@ -105,7 +110,7 @@ def update_subject(subject_id: int, subject: schemas.SubjectBase, db: Session = 
     db.refresh(db_subject)
     return db_subject
 
-@app.delete("/subjects/{subject_id}")
+@router.delete("/subjects/{subject_id}")
 def delete_subject(subject_id: int, db: Session = Depends(get_db)):
     subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
     if not subject:
@@ -120,14 +125,14 @@ def delete_subject(subject_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Subject deleted"}
 
-@app.get("/events/", response_model=List[schemas.EventResponse])
+@router.get("/events/", response_model=List[schemas.EventResponse])
 def get_events(subject_id: int = None, db: Session = Depends(get_db)):
     query = db.query(models.Event)
     if subject_id:
         query = query.filter(models.Event.subject_id == subject_id)
     return query.all()
 
-@app.post("/events/", response_model=schemas.EventResponse)
+@router.post("/events/", response_model=schemas.EventResponse)
 def create_event(event: schemas.EventBase, db: Session = Depends(get_db)):
     db_event = models.Event(**event.dict())
     db.add(db_event)
@@ -135,7 +140,7 @@ def create_event(event: schemas.EventBase, db: Session = Depends(get_db)):
     db.refresh(db_event)
     return db_event
 
-@app.put("/events/{event_id}", response_model=schemas.EventResponse)
+@router.put("/events/{event_id}", response_model=schemas.EventResponse)
 def update_event(event_id: int, event: schemas.EventBase, db: Session = Depends(get_db)):
     db_event = db.query(models.Event).filter(models.Event.id == event_id).first()
     if not db_event:
@@ -147,11 +152,11 @@ def update_event(event_id: int, event: schemas.EventBase, db: Session = Depends(
     db.refresh(db_event)
     return db_event
 
-@app.get("/events/{event_id}/slots", response_model=List[schemas.QueueSlotResponse])
+@router.get("/events/{event_id}/slots", response_model=List[schemas.QueueSlotResponse])
 def get_queue_slots(event_id: int, db: Session = Depends(get_db)):
     return db.query(models.QueueSlot).filter(models.QueueSlot.event_id == event_id).all()
 
-@app.delete("/events/{event_id}")
+@router.delete("/events/{event_id}")
 def delete_event(event_id: int, db: Session = Depends(get_db)):
     event = db.query(models.Event).filter(models.Event.id == event_id).first()
     if not event:
@@ -161,7 +166,7 @@ def delete_event(event_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Event deleted"}
 
-@app.post("/slots/", response_model=schemas.QueueSlotResponse)
+@router.post("/slots/", response_model=schemas.QueueSlotResponse)
 def take_slot(slot_data: schemas.QueueSlotCreate, db: Session = Depends(get_db)):
     # Check if position is already taken
     existing_slot = db.query(models.QueueSlot).filter(
@@ -191,7 +196,7 @@ def take_slot(slot_data: schemas.QueueSlotCreate, db: Session = Depends(get_db))
     # Return the slot with the created user
     return db_slot
 
-@app.delete("/slots/{slot_id}")
+@router.delete("/slots/{slot_id}")
 def delete_slot(slot_id: int, db: Session = Depends(get_db)):
     slot = db.query(models.QueueSlot).filter(models.QueueSlot.id == slot_id).first()
     if not slot:
@@ -201,11 +206,11 @@ def delete_slot(slot_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Slot deleted"}
 
-@app.get("/homeworks/", response_model=List[schemas.HomeworkResponse])
+@router.get("/homeworks/", response_model=List[schemas.HomeworkResponse])
 def get_homeworks(db: Session = Depends(get_db)):
     return db.query(models.Homework).all()
 
-@app.post("/homeworks/", response_model=schemas.HomeworkResponse)
+@router.post("/homeworks/", response_model=schemas.HomeworkResponse)
 def create_homework(hw: schemas.HomeworkBase, db: Session = Depends(get_db)):
     db_hw = models.Homework(**hw.dict())
     db.add(db_hw)
@@ -213,7 +218,7 @@ def create_homework(hw: schemas.HomeworkBase, db: Session = Depends(get_db)):
     db.refresh(db_hw)
     return db_hw
 
-@app.put("/homeworks/{hw_id}", response_model=schemas.HomeworkResponse)
+@router.put("/homeworks/{hw_id}", response_model=schemas.HomeworkResponse)
 def update_homework(hw_id: int, hw: schemas.HomeworkBase, db: Session = Depends(get_db)):
     db_hw = db.query(models.Homework).filter(models.Homework.id == hw_id).first()
     if not db_hw:
@@ -224,7 +229,7 @@ def update_homework(hw_id: int, hw: schemas.HomeworkBase, db: Session = Depends(
     db.refresh(db_hw)
     return db_hw
 
-@app.delete("/homeworks/{hw_id}")
+@router.delete("/homeworks/{hw_id}")
 def delete_homework(hw_id: int, db: Session = Depends(get_db)):
     db_hw = db.query(models.Homework).filter(models.Homework.id == hw_id).first()
     if not db_hw:
@@ -232,3 +237,7 @@ def delete_homework(hw_id: int, db: Session = Depends(get_db)):
     db.delete(db_hw)
     db.commit()
     return {"message": "Homework deleted"}
+
+# Подключаем роутер и в корень, и с префиксом /api для полной совместимости с Vercel и локальным запуском
+app.include_router(router)
+app.include_router(router, prefix="/api")
