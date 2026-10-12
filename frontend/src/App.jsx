@@ -65,11 +65,16 @@ function Dashboard() {
   const [eventSort, setEventSort] = useState('nearest'); // 'nearest', 'farthest', 'newest'
   const [filterDate, setFilterDate] = useState(''); // Specific date
 
+  const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [dbError, setDbError] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
+    setIsLoadingDb(true);
+    setDbError(false);
     try {
       const [subs, evs, hws] = await Promise.all([
         api.get('/subjects/'),
@@ -79,43 +84,65 @@ function Dashboard() {
       setSubjects(subs.data);
       setEvents(evs.data);
       setHomeworks(hws.data);
+      setIsLoadingDb(false);
     } catch (err) {
       console.error(err);
+      setIsLoadingDb(false);
+      setDbError(true);
     }
   };
 
   const createSubject = async (e) => {
     e.preventDefault();
-    if (!newSubjectName.trim()) return;
+    const name = newSubjectName.trim();
+    if (!name) return;
+
+    // Optimistic update
+    const tempId = `temp-sub-${Date.now()}`;
+    const tempSubject = { id: tempId, name };
+    setSubjects(prev => [...prev, tempSubject]);
+    setNewSubjectName('');
+    setIsAddingSubject(false);
+
     try {
-      const res = await api.post('/subjects/', { name: newSubjectName });
-      setSubjects([...subjects, res.data]);
-      setNewSubjectName('');
-      setIsAddingSubject(false);
+      const res = await api.post('/subjects/', { name });
+      setSubjects(prev => prev.map(s => s.id === tempId ? res.data : s));
     } catch (err) {
-      alert('Ошибка при создании предмета');
+      setSubjects(prev => prev.filter(s => s.id !== tempId));
+      alert('Ошибка при сохранении предмета в БД');
     }
   };
 
   const updateSubject = async (e, id) => {
     e.preventDefault();
-    if (!editingSubjectName.trim()) return;
+    const name = editingSubjectName.trim();
+    if (!name) return;
+
+    // Optimistic update
+    const oldSubjects = [...subjects];
+    setSubjects(prev => prev.map(s => s.id === id ? { ...s, name } : s));
+    setEditingSubjectId(null);
+
     try {
-      await api.put(`/subjects/${id}`, { name: editingSubjectName });
-      setEditingSubjectId(null);
-      fetchData();
+      await api.put(`/subjects/${id}`, { name });
     } catch (err) {
+      setSubjects(oldSubjects);
       alert('Ошибка при обновлении предмета');
     }
   };
 
   const deleteSubject = async (id) => {
     if (!window.confirm('Точно удалить предмет и ВСЕ его очереди?')) return;
+
+    // Optimistic delete
+    const oldSubjects = [...subjects];
+    setSubjects(prev => prev.filter(s => s.id !== id));
+    if (selectedSubjectId === id) setSelectedSubjectId(null);
+
     try {
       await api.delete(`/subjects/${id}`);
-      if (selectedSubjectId === id) setSelectedSubjectId(null);
-      fetchData();
     } catch (err) {
+      setSubjects(oldSubjects);
       console.error(err);
     }
   };
@@ -123,42 +150,74 @@ function Dashboard() {
   const createEvent = async (e) => {
     e.preventDefault();
     if (!newEvent.subject_id) return alert('Выберите предмет');
+
+    // Optimistic create
+    const tempId = `temp-ev-${Date.now()}`;
+    const tempEvent = {
+      id: tempId,
+      title: newEvent.title.trim() || '',
+      date: newEvent.date || null,
+      subject_id: parseInt(newEvent.subject_id),
+      created_at: new Date().toISOString()
+    };
+
+    setEvents(prev => [tempEvent, ...prev]);
+    setShowCreateForm(false);
+    setNewEvent({ title: '', date: '', subject_id: '' });
+
     try {
-      await api.post('/events/', {
-        title: newEvent.title.trim() || '',
-        date: newEvent.date || null,
-        subject_id: parseInt(newEvent.subject_id)
+      const res = await api.post('/events/', {
+        title: tempEvent.title,
+        date: tempEvent.date,
+        subject_id: tempEvent.subject_id
       });
-      setShowCreateForm(false);
-      setNewEvent({ title: '', date: '', subject_id: '' });
-      fetchData();
+      setEvents(prev => prev.map(ev => ev.id === tempId ? res.data : ev));
     } catch (err) {
-      alert('Ошибка при создании очереди');
+      setEvents(prev => prev.filter(ev => ev.id !== tempId));
+      alert('Ошибка при создании очереди в БД');
     }
   };
 
   const updateEvent = async (e) => {
     e.preventDefault();
     if (!editEventForm.subject_id) return alert('Выберите предмет');
+
+    const evId = editingEvent.id;
+    const oldEvents = [...events];
+
+    // Optimistic update
+    setEvents(prev => prev.map(ev => ev.id === evId ? {
+      ...ev,
+      title: editEventForm.title.trim() || '',
+      date: editEventForm.date || null,
+      subject_id: parseInt(editEventForm.subject_id)
+    } : ev));
+    setEditingEvent(null);
+
     try {
-      await api.put(`/events/${editingEvent.id}`, {
+      const res = await api.put(`/events/${evId}`, {
         title: editEventForm.title.trim() || '',
         date: editEventForm.date || null,
         subject_id: parseInt(editEventForm.subject_id)
       });
-      setEditingEvent(null);
-      fetchData();
+      setEvents(prev => prev.map(ev => ev.id === evId ? res.data : ev));
     } catch (err) {
+      setEvents(oldEvents);
       alert('Ошибка при обновлении очереди');
     }
   };
 
   const deleteEvent = async (id) => {
     if (!window.confirm('Точно удалить эту очередь?')) return;
+
+    // Optimistic delete
+    const oldEvents = [...events];
+    setEvents(prev => prev.filter(ev => ev.id !== id));
+
     try {
       await api.delete(`/events/${id}`);
-      fetchData();
     } catch (err) {
+      setEvents(oldEvents);
       console.error(err);
     }
   };
@@ -168,27 +227,47 @@ function Dashboard() {
   const createHomework = async (e) => {
     e.preventDefault();
     if (!newHw.subject_id) return alert('Выберите предмет');
+
+    // Optimistic create
+    const tempId = `temp-hw-${Date.now()}`;
+    const tempHw = {
+      id: tempId,
+      title: newHw.title.trim() || 'Без названия',
+      description: newHw.description || '',
+      due_date: newHw.due_date || null,
+      subject_id: parseInt(newHw.subject_id),
+      created_at: new Date().toISOString()
+    };
+
+    setHomeworks(prev => [tempHw, ...prev]);
+    setShowCreateForm(false);
+    setNewHw({ title: '', description: '', due_date: '', subject_id: '' });
+
     try {
-      await api.post('/homeworks/', {
-        title: newHw.title.trim() || 'Без названия',
-        description: newHw.description || '',
-        due_date: newHw.due_date || null,
-        subject_id: parseInt(newHw.subject_id)
+      const res = await api.post('/homeworks/', {
+        title: tempHw.title,
+        description: tempHw.description,
+        due_date: tempHw.due_date,
+        subject_id: tempHw.subject_id
       });
-      setShowCreateForm(false);
-      setNewHw({ title: '', description: '', due_date: '', subject_id: '' });
-      fetchData();
+      setHomeworks(prev => prev.map(h => h.id === tempId ? res.data : h));
     } catch (err) {
-      alert('Ошибка при добавлении задания');
+      setHomeworks(prev => prev.filter(h => h.id !== tempId));
+      alert('Ошибка при добавлении задания в БД');
     }
   };
 
   const deleteHomework = async (id) => {
     if (!window.confirm('Точно удалить задание?')) return;
+
+    // Optimistic delete
+    const oldHws = [...homeworks];
+    setHomeworks(prev => prev.filter(h => h.id !== id));
+
     try {
       await api.delete(`/homeworks/${id}`);
-      fetchData();
     } catch (err) {
+      setHomeworks(oldHws);
       console.error(err);
     }
   };
@@ -262,6 +341,17 @@ function Dashboard() {
             </button>
           </div>
         </div>
+        {isLoadingDb && (
+          <div className="bg-red-500 text-white text-xs font-semibold py-1 px-4 text-center animate-pulse flex items-center justify-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+            База данных загружается, подождите...
+          </div>
+        )}
+        {dbError && !isLoadingDb && (
+          <div className="bg-red-600 text-white text-xs font-semibold py-1 px-4 text-center flex items-center justify-center gap-2">
+            ⚠️ Ошибка подключения к базе данных (проверьте DATABASE_URL в Vercel)
+          </div>
+        )}
       </header>
 
       <div className="max-w-5xl mx-auto px-4 md:px-6 mt-8 flex flex-col md:flex-row gap-8">
